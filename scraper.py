@@ -2,8 +2,6 @@ import os
 import sys
 import re
 import time
-import requests
-from bs4 import BeautifulSoup as bs
 from urllib.parse import urlparse
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
@@ -11,6 +9,7 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from bs4 import BeautifulSoup as bs
 
 scrapeOutputDirectory = "./output/scrapes"
 defaultPageFileName = "index.html"
@@ -71,13 +70,19 @@ def extract_content(folder_path, response_content):
             print("Timed out waiting for elements with class '{}'.".format(search_class))
         finally:
             driver.quit()
+    pass
 
 def create_site_folder_from_scrape(url):
     options = Options()
-    options.headless = True
+    options.headless = False  # Set headless mode to False to show browser window
+    # Disable desktop notifications
+    options.set_preference("permissions.default.desktop-notification", 1)
     driver = webdriver.Firefox(options=options)
     driver.get(url)
 
+    # Minimize the window
+    driver.minimize_window()
+    
     # Add a delay to wait for the page to load completely
     time.sleep(10)  # Adjust the sleep time as needed
     
