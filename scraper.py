@@ -1,28 +1,40 @@
 import os
-import requests
 import sys
 import re
+import time
+import requests
 from bs4 import BeautifulSoup as bs
 from urllib.parse import urlparse
-
-mode = 0o777
-fileEncoding = "utf-8"
+from selenium import webdriver
+from selenium.webdriver.firefox.options import Options
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 
 scrapeOutputDirectory = "./output/scrapes"
 defaultPageFileName = "index.html"
 specificFileName = "specific-items.html"
 
+mode = 0o777
+fileEncoding = "utf-8"
+
 html_tags = ["link", "html", "head", "title", "meta", "body", "div", "p", "a", "img", "ul", "ol", "li", "table", "tr", "td", "th", "form", "input", "button", "textarea"]
 
 def extract_content(folder_path, response_content):
-    isTag = input("Are you looking for a tag? - (y / n): ")
-    if isTag == "y":
+    searchFor = input("What do you want to search for? - (tag / class): ")
+    if searchFor == "tag":
         isOnelineTag = input("Is the tag one line? (ex: <link rel="" href="" />) - (y / n): ")
         if isOnelineTag == "y":
             search_term = input("Enter the tag you want to find: ")
-        
             if search_term in html_tags:
-                link_content = re.findall(r'<' + search_term + r'[^>]*\/>', response_content.decode('utf-8'))
+                try:
+                    response_content_decoded = response_content.decode('utf-8')
+                except UnicodeDecodeError as e:
+                    print("UnicodeDecodeError:", e)
+                    response_content_decoded = response_content.decode('utf-8', errors='ignore')
+
+                link_content = re.findall(r'<' + search_term + r'[^>]*\/>', response_content_decoded)
                 if link_content:
                     with open(os.path.join(folder_path, specificFileName), "w", encoding='utf-8') as f:
                         i = 0
@@ -36,10 +48,41 @@ def extract_content(folder_path, response_content):
                 print("Exported to " + scrapeOutputDirectory.replace("./", "") + "/" + specificFileName)
             else:
                 print("'{}' not valid HTML tag.".format(search_term))
-    else:
-        return
+    elif searchFor == "class":
+        search_class = input("Enter the class you want to find: ").strip()
+        options = Options()
+        options.headless = True
+        driver = webdriver.Firefox(options=options)
+        driver.get("about:blank")
+        driver.execute_script("document.body.innerHTML = '{}';".format(response_content.replace("'", "\\'").replace("\n", "\\n")))
+        try:
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, search_class)))
+            soup = bs(driver.page_source, 'html.parser')
+            elements_with_class = soup.find_all(class_=search_class)
+            if elements_with_class:
+                with open(os.path.join(folder_path, specificFileName), "w", encoding='utf-8') as f:
+                    for element in elements_with_class:
+                        f.write(str(element) + "\n")
+                    print("Found {} elements with class '{}'.".format(len(elements_with_class), search_class))
+                    print("Exported to " + scrapeOutputDirectory.replace("./", "") + "/" + specificFileName)
+            else:
+                print("No elements found with class '{}'.".format(search_class))
+        except TimeoutException:
+            print("Timed out waiting for elements with class '{}'.".format(search_class))
+        finally:
+            driver.quit()
 
-def create_site_folder_from_scrape(url, response_content):
+def create_site_folder_from_scrape(url):
+    options = Options()
+    options.headless = True
+    driver = webdriver.Firefox(options=options)
+    driver.get(url)
+
+    # Add a delay to wait for the page to load completely
+    time.sleep(10)  # Adjust the sleep time as needed
+    
+    response_content = driver.page_source
+    
     domain = urlparse(url).netloc
     folder_path = os.path.join(scrapeOutputDirectory, domain)
     
@@ -47,11 +90,11 @@ def create_site_folder_from_scrape(url, response_content):
         os.makedirs(folder_path, mode)
         
     with open(os.path.join(folder_path, defaultPageFileName), "w", encoding=fileEncoding) as f:
-        soup = bs(response_content, 'html.parser')
-        prettyHTML = soup.prettify()
-        f.write(prettyHTML)
+        f.write(response_content)
         
     extract_content(folder_path, response_content)
+
+    driver.quit()
 
 def main():
     print("Enter the URL with connection type (http:// or https://):")
@@ -61,15 +104,8 @@ def main():
         print("Invalid URL. Please include 'http://' or 'https://'")
         sys.exit(1)
 
-    response = requests.get(url)
-    
-    if response.status_code == 404:
-        print("Error: Page not found")
-    elif response.status_code != 200:
-        print("Error: Failed to fetch the page. Status code:", response.status_code)
-    else:
-        print("Page content saved successfully.")
-        create_site_folder_from_scrape(url, response.content)
+    print("Fetching page content...")
+    create_site_folder_from_scrape(url)
 
 if __name__ == "__main__":
     main()
