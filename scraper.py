@@ -73,18 +73,17 @@ def extract_content(folder_path, response_content):
     pass
 
 def create_site_folder_from_scrape(url):
+    print("Fetching page content...")
+    
     options = Options()
-    options.headless = False  # Set headless mode to False to show browser window
-    # Disable desktop notifications
+    options.headless = False
     options.set_preference("permissions.default.desktop-notification", 1)
     driver = webdriver.Firefox(options=options)
     driver.get(url)
 
-    # Minimize the window
     driver.minimize_window()
     
-    # Add a delay to wait for the page to load completely
-    time.sleep(10)  # Adjust the sleep time as needed
+    time.sleep(10)
     
     response_content = driver.page_source
     
@@ -108,8 +107,7 @@ def main():
     if not (url.startswith('http://') or url.startswith('https://')):
         print("Invalid URL. Please include 'http://' or 'https://'")
         sys.exit(1)
-
-    print("Fetching page content...")
+    print("Opening Browser...")
     create_site_folder_from_scrape(url)
 
 if __name__ == "__main__":
