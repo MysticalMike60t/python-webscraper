@@ -2,15 +2,11 @@ import os
 import sys
 import re
 import time
-import requests
-from bs4 import BeautifulSoup as bs
 from urllib.parse import urlparse
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
+from bs4 import BeautifulSoup as bs
 
 scrapeOutputDirectory = "./output/scrapes"
 defaultPageFileName = "index.html"
@@ -24,17 +20,11 @@ html_tags = ["link", "html", "head", "title", "meta", "body", "div", "p", "a", "
 def extract_content(folder_path, response_content):
     searchFor = input("What do you want to search for? - (tag / class): ")
     if searchFor == "tag":
-        isOnelineTag = input("Is the tag one line? (ex: <link rel="" href="" />) - (y / n): ")
+        isOnelineTag = input("Is the tag one line? (ex: <link rel= href= />) - (y / n): ")
         if isOnelineTag == "y":
             search_term = input("Enter the tag you want to find: ")
             if search_term in html_tags:
-                try:
-                    response_content_decoded = response_content.decode('utf-8')
-                except UnicodeDecodeError as e:
-                    print("UnicodeDecodeError:", e)
-                    response_content_decoded = response_content.decode('utf-8', errors='ignore')
-
-                link_content = re.findall(r'<' + search_term + r'[^>]*\/>', response_content_decoded)
+                link_content = re.findall(r'<' + search_term + '\s[^>]*\/?>', response_content)
                 if link_content:
                     with open(os.path.join(folder_path, specificFileName), "w", encoding='utf-8') as f:
                         i = 0
@@ -50,14 +40,8 @@ def extract_content(folder_path, response_content):
                 print("'{}' not valid HTML tag.".format(search_term))
     elif searchFor == "class":
         search_class = input("Enter the class you want to find: ").strip()
-        options = Options()
-        options.headless = True
-        driver = webdriver.Firefox(options=options)
-        driver.get("about:blank")
-        driver.execute_script("document.body.innerHTML = '{}';".format(response_content.replace("'", "\\'").replace("\n", "\\n")))
         try:
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, search_class)))
-            soup = bs(driver.page_source, 'html.parser')
+            soup = bs(response_content, 'html.parser')
             elements_with_class = soup.find_all(class_=search_class)
             if elements_with_class:
                 with open(os.path.join(folder_path, specificFileName), "w", encoding='utf-8') as f:
@@ -69,17 +53,19 @@ def extract_content(folder_path, response_content):
                 print("No elements found with class '{}'.".format(search_class))
         except TimeoutException:
             print("Timed out waiting for elements with class '{}'.".format(search_class))
-        finally:
-            driver.quit()
 
 def create_site_folder_from_scrape(url):
+    print("Fetching page content...")
+    
     options = Options()
-    options.headless = True
+    options.headless = False
+    options.set_preference("permissions.default.desktop-notification", 1)
     driver = webdriver.Firefox(options=options)
     driver.get(url)
 
-    # Add a delay to wait for the page to load completely
-    time.sleep(10)  # Adjust the sleep time as needed
+    driver.minimize_window()
+    
+    time.sleep(10)
     
     response_content = driver.page_source
     
@@ -103,8 +89,7 @@ def main():
     if not (url.startswith('http://') or url.startswith('https://')):
         print("Invalid URL. Please include 'http://' or 'https://'")
         sys.exit(1)
-
-    print("Fetching page content...")
+    print("Opening Browser...")
     create_site_folder_from_scrape(url)
 
 if __name__ == "__main__":
