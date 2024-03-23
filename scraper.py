@@ -12,12 +12,32 @@ scrapeOutputDirectory = "./output/scrapes"
 defaultPageFileName = "index.html"
 specificFileName = "specific-items.html"
 
-def extract_link_content(folder_path, response_content):
-    link_content = re.findall(r'<link[^>]*\/>', response_content.decode(fileEncoding))
-    if link_content:
-        with open(os.path.join(folder_path, specificFileName), "w", encoding=fileEncoding) as f:
-            for item in link_content:
-                f.write(item + "\n")
+html_tags = ["link", "html", "head", "title", "meta", "body", "div", "p", "a", "img", "ul", "ol", "li", "table", "tr", "td", "th", "form", "input", "button", "textarea"]
+
+def extract_content(folder_path, response_content):
+    isTag = input("Are you looking for a tag? - (y / n): ")
+    if isTag == "y":
+        isOnelineTag = input("Is the tag one line? (ex: <link rel="" href="" />) - (y / n): ")
+        if isOnelineTag == "y":
+            search_term = input("Enter the tag you want to find: ")
+        
+            if search_term in html_tags:
+                link_content = re.findall(r'<' + search_term + r'[^>]*\/>', response_content.decode('utf-8'))
+                if link_content:
+                    with open(os.path.join(folder_path, specificFileName), "w", encoding='utf-8') as f:
+                        i = 0
+                        for item in link_content:
+                            i += 1
+                            f.write(item + "\n")
+                            print(str(i) + " found!", end="\r")
+                        print(str(i) + " found!")
+                else:
+                    print("No matching tags found.")
+                print("Exported to " + scrapeOutputDirectory.replace("./", "") + "/" + specificFileName)
+            else:
+                print("'{}' not valid HTML tag.".format(search_term))
+    else:
+        return
 
 def create_site_folder_from_scrape(url, response_content):
     domain = urlparse(url).netloc
@@ -31,8 +51,7 @@ def create_site_folder_from_scrape(url, response_content):
         prettyHTML = soup.prettify()
         f.write(prettyHTML)
         
-    # Extract specific content and save it
-    extract_link_content(folder_path, response_content)
+    extract_content(folder_path, response_content)
 
 def main():
     print("Enter the URL with connection type (http:// or https://):")
